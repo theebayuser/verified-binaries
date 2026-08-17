@@ -8,7 +8,7 @@
    "rev": "5ea231c92a0ce33c5e1c982ddb8b4fb3eca7eac6",
    "name": "CodeLib",
    "manifestFile": "lake-manifest.json",
-   "inputRev": "main",
+   "inputRev": "5ea231c92a0ce33c5e1c982ddb8b4fb3eca7eac6",
    "inherited": false,
    "configFile": "lakefile.toml"},
   {"url": "https://github.com/mfornet/iris-lean.git",

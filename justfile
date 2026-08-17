@@ -24,6 +24,11 @@ prove:
 check:
     {{VERIFIER}} check
 
+# Which theorems depend on which axioms, and in particular which ones use
+# native_decide. See docs/axiom-audit.lean for what to expect.
+axioms:
+    cd lean && lake env lean ../docs/axiom-audit.lean
+
 # The two crates must stay byte-identical; only the opt-level differs.
 diff-sources:
     diff rust/binary_search/src/lib.rs rust/binary_search_opt3/src/lib.rs

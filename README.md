@@ -81,11 +81,27 @@ that any particular embedder implements the semantics the model describes.
 
 ## Current state
 
-- Pure model and its correctness lemmas: proved, no `sorry`, and dependency-free
-  so the specification can be reviewed on its own.
-- Both artifacts compiled, staged, decoded into Lean, and hash-recorded.
-- Recon of the emitted code written up in `docs/wat-recon.md`.
-- Wasm-level proofs: in progress.
+Proved, `lake build --wfail` clean, no `sorry`:
+
+- **The model and its correctness lemmas.** A reported hit is genuine
+  (`searchResult_hit`), and the sentinel is returned only when the target really
+  is absent (`searchResult_miss`, which is where sortedness is needed). This
+  file imports nothing, so the specification can be checked against a bare Lean
+  toolchain without building the verification stack.
+- **Both compiled artifacts agree with the model on concrete inputs**, by
+  running the decoded binaries: hits at the first, middle and last positions,
+  misses below, between and above, the empty array, and duplicates. Nine cases
+  for the optimized build, three for the unoptimized one.
+- **The two artifacts are observationally equivalent on those inputs**
+  (`ObservationallyEquivOn`), including the empty array, where the optimized
+  build tests the length up front and never enters its loop.
+- **The total-WP rules the symbolic proof needs** for `i32.shr_u`, `i32.gt_u`
+  and `i32.ge_u`, which the upstream total lifting library does not carry.
+
+Not yet done: the symbolic proofs, which is what makes the statements universal
+rather than per-input. The concrete results above depend on `native_decide`, and
+`just axioms` prints exactly which theorems those are; the model lemmas and the
+WP rules do not.
 
 ## License
 

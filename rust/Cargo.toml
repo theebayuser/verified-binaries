@@ -3,7 +3,6 @@ resolver = "2"
 members = [
   "binary_search",
   "binary_search_opt3",
-  "is_even",
 ]
 
 # Baseline: unoptimized. `binary_search` is the opt-level 0 artifact, and the
