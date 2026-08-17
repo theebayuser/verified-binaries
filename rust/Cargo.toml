@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+  "binary_search",
+  "binary_search_opt3",
+  "is_even",
+]
+
+# Baseline: unoptimized. `binary_search` is the opt-level 0 artifact, and the
+# one the functional-correctness proof is written against.
+[profile.release]
+opt-level = 0
+lto = false
+codegen-units = 1
+
+# `binary_search_opt3` compiles byte-identical Rust source at opt-level 3, so
+# the two artifacts can be related by an observational-equivalence proof.
+[profile.release.package.binary_search_opt3]
+opt-level = 3

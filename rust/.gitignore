@@ -1,0 +1,6 @@
+/target
+
+# `build/` is intentionally NOT ignored. Each emitted `Program.lean` embeds the
+# text of `build/<crate>/program.wat` and its Lean build fails if that file is
+# missing or differs by a byte, so the staged wasm and wat are part of the
+# checked-in artifact set.
