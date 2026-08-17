@@ -68,6 +68,55 @@ private theorem getElem!_eq_of_getElem? {xs : List UInt32} {m : Nat} {v : UInt32
     (h : xs[m]? = some v) : xs[m]! = v := by
   rw [List.getElem!_eq_getElem?_getD, h]; rfl
 
+/-! ## One-step window lemmas
+
+One unfolding of `searchAux` per branch of the compiled loop body, phrased so
+the Iris loop proof can rewrite its invariant without touching the recursion
+itself. -/
+
+/-- Empty window: the search reports a miss. -/
+theorem searchAux_none_of_ge {xs : List UInt32} {target : UInt32} {lo hi : Nat}
+    (hge : ¬ lo < hi) : searchAux xs target lo hi = none := by
+  rw [searchAux]
+  simp only [hge, dif_neg, not_false_iff]
+
+/-- Element below target: the answer comes from the upper half. -/
+theorem searchAux_step_right {xs : List UInt32} {target v : UInt32} {lo hi : Nat}
+    (hlt : lo < hi) (hget : xs[mid lo hi]? = some v) (hv : v < target) :
+    searchAux xs target lo hi = searchAux xs target (mid lo hi + 1) hi := by
+  rw [searchAux]
+  simp only [hlt, dif_pos, hget, hv, if_pos]
+
+/-- Element above target: the answer comes from the lower half. -/
+theorem searchAux_step_left {xs : List UInt32} {target v : UInt32} {lo hi : Nat}
+    (hlt : lo < hi) (hget : xs[mid lo hi]? = some v)
+    (hv1 : ¬ v < target) (hv2 : target < v) :
+    searchAux xs target lo hi = searchAux xs target lo (mid lo hi) := by
+  rw [searchAux]
+  simp only [hlt, dif_pos, hget, hv1, hv2, if_neg, if_pos, not_false_iff]
+
+/-- Element equals target: the search stops at the midpoint. -/
+theorem searchAux_hit {xs : List UInt32} {target v : UInt32} {lo hi : Nat}
+    (hlt : lo < hi) (hget : xs[mid lo hi]? = some v)
+    (hv1 : ¬ v < target) (hv2 : ¬ target < v) :
+    searchAux xs target lo hi = some (mid lo hi) := by
+  rw [searchAux]
+  simp only [hlt, dif_pos, hget, hv1, hv2, if_neg, not_false_iff]
+
+/-- Fold a concluded hit back into the exported function's return value. -/
+theorem searchResult_of_aux_some {xs : List UInt32} {target : UInt32} {i : Nat}
+    (h : searchAux xs target 0 xs.length = some i) :
+    searchResult xs target = UInt32.ofNat i := by
+  unfold searchResult
+  rw [h]
+
+/-- Fold a concluded miss back into the exported function's return value. -/
+theorem searchResult_of_aux_none {xs : List UInt32} {target : UInt32}
+    (h : searchAux xs target 0 xs.length = none) :
+    searchResult xs target = notFound := by
+  unfold searchResult
+  rw [h]
+
 /-- A reported hit is genuine. Sortedness is not needed for this direction. -/
 theorem searchAux_some {xs : List UInt32} {target : UInt32} {i : Nat} :
     ∀ lo hi, searchAux xs target lo hi = some i →

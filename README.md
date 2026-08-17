@@ -22,6 +22,7 @@ build.
    `u32` array in linear memory, the compiled export terminates and returns an
    index holding the target when the target is present, and `-1` when it is
    absent. Termination is proved from a well-founded measure, not assumed.
+   This one is done; see [Current state](#current-state).
 2. **Observational equivalence of the two artifacts.** The unoptimized and
    optimized builds agree on the observable outcome for every input meeting the
    precondition.
@@ -83,6 +84,18 @@ that any particular embedder implements the semantics the model describes.
 
 Proved, `lake build --wfail` clean, no `sorry`:
 
+- **Symbolic total correctness of the optimized artifact.** For every `u32`
+  array laid out anywhere in the heap region and every target, the decoded
+  `opt-level = 3` export terminates and returns exactly what the pure model
+  returns (`BinarySearchOpt3Spec` in `BinarySearchOpt3/Spec.lean`, proved by
+  `binarySearchOpt3Spec_holds` in `BinarySearchOpt3/TotalProof.lean`).
+  Termination comes from a well-founded measure on the loop, the compiler's
+  bounds-check branch is discharged as unreachable from the loop invariant,
+  and the statement is fuel-free. `terminates_hit` and `terminates_miss`
+  interpret the returned value: a non-sentinel answer is an index holding the
+  target with no sortedness assumption at all, and for sorted input the
+  sentinel means the target is absent. The whole chain depends on Lean's
+  standard axioms only; `just axioms` shows it, and CI fails if that changes.
 - **The model and its correctness lemmas.** A reported hit is genuine
   (`searchResult_hit`), and the sentinel is returned only when the target really
   is absent (`searchResult_miss`, which is where sortedness is needed). This
@@ -98,10 +111,13 @@ Proved, `lake build --wfail` clean, no `sorry`:
 - **The total-WP rules the symbolic proof needs** for `i32.shr_u`, `i32.gt_u`
   and `i32.ge_u`, which the upstream total lifting library does not carry.
 
-Not yet done: the symbolic proofs, which is what makes the statements universal
-rather than per-input. The concrete results above depend on `native_decide`, and
-`just axioms` prints exactly which theorems those are; the model lemmas and the
-WP rules do not.
+Not yet done: the symbolic proof of the unoptimized artifact and the symbolic
+form of the equivalence statement, which are parked until the upstream global
+and call rules they need are available. The concrete per-input results depend
+on `native_decide` and are quarantined in `Smoke.lean` / `Equivalence.lean`;
+`just axioms` prints exactly which theorems those are. Every universal
+statement, including the symbolic proof above, carries the standard axioms
+only.
 
 ## License
 

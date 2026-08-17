@@ -26,6 +26,13 @@ open Project.BinarySearch.Pure
 #print axioms Wasm.SmallStep.twp_gtU
 #print axioms Wasm.SmallStep.twp_geU
 
+-- The symbolic opt3 proof: standard axioms only. This is the audit line
+-- that matters most: the universal statement must never pick up
+-- `Lean.ofReduceBool`.
+#print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3Spec_holds
+#print axioms Project.BinarySearchOpt3.TotalProof.terminates_hit
+#print axioms Project.BinarySearchOpt3.TotalProof.terminates_miss
+
 -- Concrete regressions: these carry `native_decide`.
 #print axioms Project.BinarySearch.Smoke.agrees_hit_middle
 #print axioms Project.BinarySearchOpt3.Smoke.agrees_hit_middle
