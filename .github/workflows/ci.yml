@@ -1,0 +1,59 @@
+# The proofs are the test suite: a green build means every theorem checked.
+#
+# Deliberately no Rust job. The staged wasm is committed and hash-pinned;
+# rebuilding it on CI would tie the proofs to the runner's rustc rather than
+# to the artifacts the theorems are actually about. See README, "What a
+# certificate here does and does not cover".
+#
+# Mathlib comes from the Lake cache; Iris and CodeLib build from source, so
+# the first run on a cold cache is slow (roughly an hour on a stock runner).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  proofs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Committed artifacts match their recorded hashes
+        run: shasum -a 256 --check docs/artifacts.sha256
+
+      - name: Crate sources are byte-identical
+        run: |
+          diff rust/binary_search/src/lib.rs rust/binary_search_opt3/src/lib.rs
+          diff rust/binary_search/src/exports.rs rust/binary_search_opt3/src/exports.rs
+
+      - name: Install elan
+        run: |
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch mathlib build cache
+        working-directory: lean
+        run: lake exe cache get
+
+      - name: Build all proofs (warnings are errors)
+        working-directory: lean
+        run: |
+          lake build --wfail 2>&1 | tee build.log
+          grep -q "Build completed successfully" build.log
+          if grep -E "error:" build.log; then exit 1; fi
+
+      - name: Axiom audit
+        working-directory: lean
+        run: |
+          lake env lean ../docs/axiom-audit.lean 2>&1 | tee axioms.log
+          # native_decide (Lean.ofReduceBool) is allowed only for the concrete
+          # regressions in Smoke.lean / Equivalence.lean, never for the model,
+          # the WP rules, or the symbolic theorems.
+          if grep ofReduceBool axioms.log | grep -vE 'Smoke|Equivalence' | grep -q .; then
+            echo "unexpected native_decide dependency outside Smoke/Equivalence"
+            exit 1
+          fi

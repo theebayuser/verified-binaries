@@ -9,7 +9,3 @@ version = "0.1.0"
 [[package]]
 name = "binary_search_opt3"
 version = "0.1.0"
-
-[[package]]
-name = "is_even"
-version = "0.1.0"
