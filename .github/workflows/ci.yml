@@ -22,8 +22,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The first run on this repository died mid-build with "the hosted runner
+      # lost communication with the server", the symptom of memory exhaustion.
+      # The heaviest proof file peaks around 2.3 GB, so several concurrent Lean
+      # workers on a 16 GB runner can plausibly reach the limit. Swap on the
+      # large ephemeral disk absorbs the spike; `free`/`df` make the next
+      # failure diagnosable instead of opaque.
+      - name: Add swap for the Lean build
+        run: |
+          sudo fallocate -l 8G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+          df -h / /mnt
+
+      # `sha256sum` rather than the justfile's `shasum`: coreutils is
+      # guaranteed on the Linux runner, and the digest file format is the same.
       - name: Committed artifacts match their recorded hashes
-        run: shasum -a 256 --check docs/artifacts.sha256
+        run: sha256sum --check docs/artifacts.sha256
 
       - name: Crate sources are byte-identical
         run: |
@@ -41,19 +58,25 @@ jobs:
 
       - name: Build all proofs (warnings are errors)
         working-directory: lean
+        env:
+          # Lake 5.0.0 has no job-count option (`lake help` lists none, and
+          # `-j` is rejected), so the only lever is the thread count inside
+          # each `lean` process. This trades build time for a lower peak; the
+          # swap above is what actually keeps the runner alive.
+          LEAN_NUM_THREADS: 2
         run: |
+          set -o pipefail
           lake build --wfail 2>&1 | tee build.log
           grep -q "Build completed successfully" build.log
-          if grep -E "error:" build.log; then exit 1; fi
 
       - name: Axiom audit
         working-directory: lean
         run: |
+          set -o pipefail
           lake env lean ../docs/axiom-audit.lean 2>&1 | tee axioms.log
-          # native_decide (Lean.ofReduceBool) is allowed only for the concrete
-          # regressions in Smoke.lean / Equivalence.lean, never for the model,
-          # the WP rules, or the symbolic theorems.
-          if grep ofReduceBool axioms.log | grep -vE 'Smoke|Equivalence' | grep -q .; then
-            echo "unexpected native_decide dependency outside Smoke/Equivalence"
-            exit 1
-          fi
+          # native_decide is allowed only for the concrete regressions in
+          # Smoke.lean / Equivalence.lean, never for the model, the WP rules,
+          # or the symbolic theorems. The record count guards against an audit
+          # that silently stopped early. See docs/check-axioms.py for why this
+          # is a parser and not a grep.
+          python3 ../docs/check-axioms.py axioms.log 25
