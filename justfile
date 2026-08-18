@@ -1,7 +1,8 @@
 # verified-binaries
 #
 # `VERIFIER` must point at a `verifier` binary built from the pinned Talos
-# checkout (see README). Everything except `emit` runs without it.
+# checkout (see README). `build-wasm`, `emit` and `check` need it; `prove`,
+# `axioms`, `diff-sources`, `hashes` and `verify-hashes` do not.
 
 VERIFIER := env_var_or_default("VERIFIER", "verifier")
 

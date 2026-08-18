@@ -5,8 +5,9 @@ members = [
   "binary_search_opt3",
 ]
 
-# Baseline: unoptimized. `binary_search` is the opt-level 0 artifact, and the
-# one the functional-correctness proof is written against.
+# Baseline: unoptimized. `binary_search` is the opt-level 0 artifact. The
+# symbolic functional-correctness proof is written against the opt-level 3
+# build; this one carries the concrete regressions and the equivalence results.
 [profile.release]
 opt-level = 0
 lto = false

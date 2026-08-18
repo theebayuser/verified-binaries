@@ -17,12 +17,12 @@ off the emitted WAT, not assumed.
 ```
 
 Signature `(param i32 i32 i32) (result i32)` = `(ptr, len, target) -> index`,
-with `-1` for absent. 74 functions total at opt0, 71 at opt3; all but the
+with `-1` for absent. 60 functions total at opt0, 58 at opt3; all but the
 exported one (and the panic path it calls) are unreachable Rust-std machinery.
 
 ## opt-level 3: locals only, no shadow stack
 
-The exported function *is* the whole algorithm — `from_raw_parts` and the inner
+The exported function *is* the whole algorithm: `from_raw_parts` and the inner
 `binary_search` are both inlined away.
 
 State lives in locals: `3` = lo, `4` = hi, `5` = mid, `6` = loaded element.

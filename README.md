@@ -1,5 +1,7 @@
 # verified-binaries
 
+[![CI](https://github.com/theebayuser/verified-binaries/actions/workflows/ci.yml/badge.svg)](https://github.com/theebayuser/verified-binaries/actions/workflows/ci.yml)
+
 Machine-checked correctness certificates for compiled WebAssembly binaries.
 
 This repository takes a real Rust function, compiles it to wasm with an
@@ -54,31 +56,51 @@ identical source hashes and the differing wasm hashes.
 
 ## Building
 
-Requires Rust 1.95.0 with the `wasm32-unknown-unknown` target, `wasm-tools`
-(1.252.0 was used), and the Lean toolchain in `lean/lean-toolchain`.
+Checking the proofs needs [`elan`](https://github.com/leanprover/elan) (it
+installs the toolchain pinned in `lean/lean-toolchain`) and
+[`just`](https://github.com/casey/just). Fetch the Mathlib build cache first,
+or the first build compiles Mathlib from source:
 
 ```bash
-just prove          # check the proofs
-just check          # full pipeline: rust -> wasm -> Lean -> proofs
+cd lean && lake exe cache get && cd ..
+just prove          # check the proofs; warnings are errors
 just verify-hashes  # confirm the committed artifacts are the ones proved about
+just axioms         # which theorems depend on which axioms
 ```
 
-`just emit` regenerates the `Program.lean` modules and additionally needs a
-`verifier` binary built from the pinned Talos checkout; point `VERIFIER` at it.
-Every generated module embeds the exact WAT text it was decoded from and fails
-to build if the staged file differs by a byte, so a generated module cannot
-drift away from the binary it describes.
+Rebuilding the wasm is optional and separate. `just build-wasm`, `just emit`
+and `just check` additionally need Rust 1.95.0 with the
+`wasm32-unknown-unknown` target, `wasm-tools` (1.252.0 was used), and a
+`verifier` binary built from the pinned Talos checkout with `VERIFIER` pointed
+at it. The staged wasm is committed and hash-pinned, so none of that is
+required to check what is proved. Every generated module embeds the exact WAT
+text it was decoded from and fails to build if the staged file differs by a
+byte, so a generated module cannot drift away from the binary it describes.
 
 ## What a certificate here does and does not cover
 
 Proved: the stated properties of the decoded wasm module, against the Talos
 semantics, checked by the Lean kernel.
 
-Not proved, and deliberately part of the trust base: that rustc compiled the
-source faithfully (the proofs are about its output, so a miscompilation shows up
-as a wrong theorem statement only if the model is also wrong), that
-`wasm-tools print` and the Talos decoder agree with the wasm binary format, and
-that any particular embedder implements the semantics the model describes.
+Not proved, and deliberately part of the trust base:
+
+- **The Talos semantics.** Everything here is proved against Talos's small-step
+  model of Wasm. If that model diverges from the specification, the theorems
+  hold of the model and say nothing about a real engine. Same for any embedder:
+  a certificate binds an implementation only to the extent the implementation
+  matches the semantics.
+- **The decoder and `wasm-tools print`.** The theorems are about the module
+  Talos decoded from the committed bytes. Hash-pinning ties that back to the
+  exact bytes, but not to the wasm binary format itself.
+- **What the Rust source means.** The proofs are about the compiler's output,
+  so a rustc miscompilation would not make any theorem here false; it would
+  make the proved artifact compute something other than what the Rust says. The
+  connection to the source's intent runs through `Pure.lean`, which is
+  hand-written and read, not derived from the Rust.
+- **`native_decide` for the concrete per-input results.** Those theorems trust
+  the compiled evaluator rather than the kernel alone. They are quarantined in
+  `Smoke.lean` / `Equivalence.lean`, and no universal statement depends on
+  them; `just axioms` and CI both enforce that boundary.
 
 ## Current state
 
@@ -105,15 +127,18 @@ Proved, `lake build --wfail` clean, no `sorry`:
   running the decoded binaries: hits at the first, middle and last positions,
   misses below, between and above, the empty array, and duplicates. Nine cases
   for the optimized build, three for the unoptimized one.
-- **The two artifacts are observationally equivalent on those inputs**
-  (`ObservationallyEquivOn`), including the empty array, where the optimized
-  build tests the length up front and never enters its loop.
+- **The two artifacts are observationally equivalent on three of those inputs**
+  (`ObservationallyEquivOn`): a hit in the middle, a miss between two elements,
+  and the empty array, where the optimized build tests the length up front and
+  never enters its loop.
 - **The total-WP rules the symbolic proof needs** for `i32.shr_u`, `i32.gt_u`
   and `i32.ge_u`, which the upstream total lifting library does not carry.
 
 Not yet done: the symbolic proof of the unoptimized artifact and the symbolic
-form of the equivalence statement, which are parked until the upstream global
-and call rules they need are available. The concrete per-input results depend
+form of the equivalence statement. Both are parked on the same missing piece:
+the unoptimized build spills its loop state through `global.get` / `global.set`
+(the shadow stack), and the upstream total lifting library has no rules for
+those yet. The concrete per-input results depend
 on `native_decide` and are quarantined in `Smoke.lean` / `Equivalence.lean`;
 `just axioms` prints exactly which theorems those are. Every universal
 statement, including the symbolic proof above, carries the standard axioms

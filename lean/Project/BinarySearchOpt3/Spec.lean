@@ -11,11 +11,17 @@ the statement is fuel-free.
 
 Two hypotheses, both about layout rather than content:
 
-* `heapBase ≤ ptr` keeps the array clear of the data segments the compiler
-  emitted (panic strings, all below `__heap_base`).
 * `ptr.toNat + 4 * arr.length ≤ 17 * 65536` keeps the array inside the
-  module's 17 pages of linear memory. This single bound also supplies every
-  no-wrap fact the address arithmetic needs, and `arr.length < 2^31` with it.
+  module's 17 pages of linear memory. This is the load-bearing one: it supplies
+  every no-wrap fact the address arithmetic needs, and `arr.length < 2^31` with
+  it.
+* `heapBase ≤ ptr` keeps the array clear of the data segments the compiler
+  emitted (panic strings, all below `__heap_base`). The proof does not consume
+  this hypothesis; it is bound and unused. It stays in the statement on purpose,
+  because a caller that overlays the array on the data segments is describing a
+  layout the module was not built for, and a theorem that quietly permitted it
+  would be advertising more than it should. Dropping it would strengthen the
+  result, never weaken it.
 
 There is deliberately no sortedness hypothesis here: the compiled code
 computes the model's recursion whether or not the array is sorted, and the
