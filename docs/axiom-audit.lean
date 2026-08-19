@@ -35,6 +35,8 @@ open Project.BinarySearch.Pure
 -- that matter most: a universal statement must never pick up a
 -- `native_decide` axiom.
 #print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3Spec_holds
+#print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3_result_unique
+#print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3_never_traps
 #print axioms Project.BinarySearchOpt3.TotalProof.terminates_hit
 #print axioms Project.BinarySearchOpt3.TotalProof.terminates_miss
 

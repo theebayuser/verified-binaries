@@ -756,6 +756,49 @@ private theorem length_small {ptr : UInt32} {arr : List UInt32}
     (hfit : ptr.toNat + 4 * arr.length ≤ 17 * 65536) :
     arr.length < 2 ^ 31 := by omega
 
+/-! ## Determinism: from "some run returns the answer" to "every run does"
+
+`TerminatesWith` is an existential over traces, so on its own it says that
+*a* terminating run of the export reaches the model's answer. The Talos
+semantics is deterministic (`step_deterministic`), and that is what turns the
+existential into the universal reading: every run that terminates returns the
+same value, and no run traps. The two corollaries below say so explicitly
+rather than leaving the step to the reader.
+-/
+
+/-- Every run of the export that terminates normally returns exactly the pure
+model's answer. Together with `binarySearchOpt3Spec_holds`, which supplies a
+terminating run, this is the universal form of total correctness. -/
+theorem binarySearchOpt3_result_unique (ptr : UInt32) (arr : List UInt32)
+    (target : UInt32)
+    (hbase : heapBase ≤ ptr)
+    (hfit : ptr.toNat + 4 * arr.length ≤ 17 * 65536)
+    {trace : List Wasm.SmallStep.StepKind} {values : List Value}
+    {store : MachineStore Unit}
+    (hrun : Wasm.SmallStep.Steps (symbolicConfig ptr arr target) trace
+      ⟨.done values, store⟩) :
+    values = [.i32 (searchResult arr target)] := by
+  obtain ⟨_, _, _, hsteps, hpost⟩ :=
+    binarySearchOpt3Spec_holds ptr arr target hbase hfit
+  obtain ⟨rfl, rfl⟩ := Wasm.SmallStep.steps_done_deterministic hrun hsteps
+  exact hpost
+
+/-- The export never traps: the compiled bounds check, the panic call and the
+`unreachable` that follows it are all out of reach for any array laid out in
+the heap region. -/
+theorem binarySearchOpt3_never_traps (ptr : UInt32) (arr : List UInt32)
+    (target : UInt32)
+    (hbase : heapBase ≤ ptr)
+    (hfit : ptr.toNat + 4 * arr.length ≤ 17 * 65536)
+    {trace : List Wasm.SmallStep.StepKind} {reason : TrapReason}
+    {store : MachineStore Unit}
+    (hrun : Wasm.SmallStep.Steps (symbolicConfig ptr arr target) trace
+      ⟨.trapped reason, store⟩) :
+    False := by
+  obtain ⟨_, _, _, hsteps, _⟩ :=
+    binarySearchOpt3Spec_holds ptr arr target hbase hfit
+  exact Wasm.SmallStep.steps_done_ne_trapped hsteps hrun
+
 /-- Interpretation of a non-sentinel answer: the returned value is an index
 into the array and the array holds the target there. No sortedness is
 needed for this direction. -/

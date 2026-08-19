@@ -9,6 +9,17 @@ VERIFIER := env_var_or_default("VERIFIER", "verifier")
 default:
     @just --list
 
+# Everything a reader needs to check what this repository claims: fetch the
+# Mathlib cache, check the proofs, confirm the committed artifacts are the ones
+# proved about, and print the axiom dependencies. Needs elan and just, nothing
+# else -- in particular no Rust and no VERIFIER.
+all: cache prove verify-hashes axioms
+
+# Populate the Mathlib build cache. Without this the first build compiles
+# Mathlib from source.
+cache:
+    cd lean && lake exe cache get
+
 # Compile both crates to wasm and stage build/<crate>/program.{wasm,wat}.
 build-wasm:
     {{VERIFIER}} build

@@ -58,15 +58,18 @@ identical source hashes and the differing wasm hashes.
 
 Checking the proofs needs [`elan`](https://github.com/leanprover/elan) (it
 installs the toolchain pinned in `lean/lean-toolchain`) and
-[`just`](https://github.com/casey/just). Fetch the Mathlib build cache first,
-or the first build compiles Mathlib from source:
+[`just`](https://github.com/casey/just), and nothing else. One command runs the
+whole check:
 
 ```bash
-cd lean && lake exe cache get && cd ..
-just prove          # check the proofs; warnings are errors
-just verify-hashes  # confirm the committed artifacts are the ones proved about
-just axioms         # which theorems depend on which axioms
+just all
 ```
+
+That fetches the Mathlib build cache (without it the first build compiles
+Mathlib from source), checks the proofs with warnings as errors, confirms the
+committed artifacts are the ones the theorems are about, and prints the axiom
+dependencies. The steps are also available separately as `just cache`,
+`just prove`, `just verify-hashes` and `just axioms`.
 
 Rebuilding the wasm is optional and separate. `just build-wasm`, `just emit`
 and `just check` additionally need Rust 1.95.0 with the
@@ -113,7 +116,12 @@ Proved, `lake build --wfail` clean, no `sorry`:
   `binarySearchOpt3Spec_holds` in `BinarySearchOpt3/TotalProof.lean`).
   Termination comes from a well-founded measure on the loop, the compiler's
   bounds-check branch is discharged as unreachable from the loop invariant,
-  and the statement is fuel-free. `terminates_hit` and `terminates_miss`
+  and the statement is fuel-free. `TerminatesWith` is an existential over
+  traces, so two corollaries spell out the universal reading that Talos's
+  determinism (`step_deterministic`) licenses: `binarySearchOpt3_result_unique`
+  says *every* terminating run returns the model's answer, and
+  `binarySearchOpt3_never_traps` says no run reaches the panic path at all.
+  `terminates_hit` and `terminates_miss`
   interpret the returned value: a non-sentinel answer is an index holding the
   target with no sortedness assumption at all, and for sorted input the
   sentinel means the target is absent. The whole chain depends on Lean's
