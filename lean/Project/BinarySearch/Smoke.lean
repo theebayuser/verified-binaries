@@ -23,9 +23,10 @@ private def writeWords (m : Mem) (base : UInt32) : List UInt32 → Mem
   | [] => m
   | v :: vs => writeWords (m.write32 base v) (base + 4) vs
 
-/-- `__heap_base` for this module: above every data segment, so the array
-cannot overlap the panic strings or the shadow stack. -/
-def heapBase : UInt32 := 1049824
+/-- `__heap_base` for this module (global 2 of the decoded artifact): above
+`__data_end` (1049853), so the array cannot overlap the panic strings, and
+far above the shadow stack, which grows down from 1048576. -/
+def heapBase : UInt32 := 1049856
 
 /-- Entry configuration for the export. `func2` declares four `i32` locals. -/
 def config (arr : List UInt32) (target : UInt32) : Wasm.SmallStep.Config Unit :=

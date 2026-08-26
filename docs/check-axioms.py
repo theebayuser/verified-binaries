@@ -2,7 +2,7 @@
 """Check the output of docs/axiom-audit.lean.
 
 The rule this enforces: every universal statement in the repository depends on
-Lean's standard axioms, plus at most the one compiler-trust axiom inherited
+Lean's standard axioms, plus at most the compiler-trust axioms inherited
 from the pinned upstream CodeLib (see BV_DECIDE_INHERITED below). A
 `native_decide` dependency is allowed exactly for the concrete per-input
 regressions, which live in `Smoke.lean` and `Equivalence.lean` and are never
@@ -25,17 +25,20 @@ STANDARD = {"propext", "Classical.choice", "Quot.sound"}
 # Theorems allowed to carry a native_decide axiom, by module.
 NATIVE_OK = re.compile(r"\.(Smoke|Equivalence)\.")
 
-# One axiom is inherited from the pinned upstream CodeLib and tolerated for
-# every theorem: upstream proves the byte-reassembly lemma
-# `Wasm.SepLogic.u32Byte_reassemble` with `bv_decide`, whose LRAT certificate
-# check runs through compiled code. Its trust base is the Lean compiler, the
-# same as `native_decide`. Every heap-touching rule in the upstream total
-# lifting library depends on that lemma, so every symbolic memory proof here
-# inherits the axiom and nothing local can remove it. The pattern is pinned
-# to that one upstream lemma on purpose: a bv_decide axiom from anywhere else
-# still fails the audit.
+# A closed set of axioms is inherited from the pinned upstream CodeLib and
+# tolerated for every theorem: upstream proves four byte-level memory lemmas
+# with `bv_decide`, whose LRAT certificate check runs through compiled code.
+# Their trust base is the Lean compiler, the same as `native_decide`. Every
+# heap-touching rule in the upstream total lifting library depends on
+# `u32Byte_reassemble`, and the heap-agreement lemmas here use
+# `Mem.read32_byte1` through `read32_byte3` to decompose each stored word
+# into its bytes, so the symbolic memory proofs inherit these axioms and
+# nothing local can remove them.
+# The pattern is pinned to those upstream lemmas on purpose: a bv_decide
+# axiom from anywhere else still fails the audit.
 BV_DECIDE_INHERITED = re.compile(
-    r"^Wasm\.SepLogic\.u32Byte_reassemble\._native\.bv_decide\.ax_\d+_\d+$")
+    r"^Wasm\.SepLogic\.(u32Byte_reassemble|Mem\.read32_byte[123])"
+    r"\._native\.bv_decide\.ax_\d+_\d+$")
 
 RECORD = re.compile(r"'([^']+)' depends on axioms: \[([^\]]*)\]", re.S)
 
@@ -82,7 +85,7 @@ def main() -> int:
 
     print(f"axiom audit ok: {len(records)} theorems, "
           f"{standard_only} on standard axioms only, "
-          f"{inherited} also carrying the inherited upstream bv_decide axiom, "
+          f"{inherited} also carrying inherited upstream bv_decide axioms, "
           f"{native} quarantined native_decide regressions")
     return 0
 

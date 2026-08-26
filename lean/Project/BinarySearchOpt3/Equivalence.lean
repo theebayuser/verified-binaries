@@ -17,7 +17,8 @@ false rather than stronger: the unoptimized build writes a shadow-stack frame
 that the optimized build never touches.
 
 These are concrete instances, established by running both binaries. The
-symbolic statement is separate and does not rest on them.
+symbolic statement lives in `SymbolicEquivalence.lean` and does not rest on
+them.
 -/
 
 namespace Project.BinarySearchOpt3.Equivalence

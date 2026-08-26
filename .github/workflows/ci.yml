@@ -79,4 +79,4 @@ jobs:
           # or the symbolic theorems. The record count guards against an audit
           # that silently stopped early. See docs/check-axioms.py for why this
           # is a parser and not a grep.
-          python3 ../docs/check-axioms.py axioms.log 27
+          python3 ../docs/check-axioms.py axioms.log 33

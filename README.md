@@ -104,13 +104,17 @@ Not proved, and deliberately part of the trust base:
   the compiled evaluator rather than the kernel alone. They are quarantined in
   `Smoke.lean` / `Equivalence.lean`, and no universal statement depends on
   them; `just axioms` and CI both enforce that boundary.
-- **One `bv_decide` axiom inherited from upstream.** At the current pin, Talos
-  proves its byte-reassembly lemma (`Wasm.SepLogic.u32Byte_reassemble`) with
-  `bv_decide`, whose LRAT certificate check runs through compiled code, so it
-  carries the same compiler trust as `native_decide`. Every upstream heap rule
-  depends on that lemma, so every symbolic memory proof here inherits exactly
-  that one axiom. `just axioms` names it, and CI fails on any other
-  non-standard axiom in a universal statement.
+- **Four `bv_decide` axioms inherited from upstream.** At the current pin,
+  Talos proves four byte-level memory lemmas with `bv_decide`:
+  `Wasm.SepLogic.u32Byte_reassemble` and `Wasm.SepLogic.Mem.read32_byte1`
+  through `read32_byte3`. The LRAT certificate check behind `bv_decide` runs
+  through compiled code, so these carry the same compiler trust as
+  `native_decide`. Every upstream heap rule depends on the first, so every
+  symbolic memory proof here inherits it; the unoptimized chain also inherits
+  the other three, because its heap-agreement lemma uses them to decompose
+  each stored word into bytes. `just axioms` names them, and CI accepts
+  exactly those four axiom names and fails on any other non-standard axiom in
+  a universal statement.
 
 ## Current state
 
@@ -132,9 +136,26 @@ Proved, `lake build --wfail` clean, no `sorry`:
   interpret the returned value: a non-sentinel answer is an index holding the
   target with no sortedness assumption at all, and for sorted input the
   sentinel means the target is absent. The whole chain depends on Lean's
-  standard axioms plus the one inherited upstream `bv_decide` axiom described
+  standard axioms plus one inherited upstream `bv_decide` axiom described
   under the trust base above; `just axioms` shows it, and CI fails if anything
   else appears.
+- **Symbolic total correctness of the unoptimized artifact.** The same
+  statement for the `opt-level = 0` export (`BinarySearchSpec` in
+  `BinarySearch/Spec.lean`, proved by `binarySearchSpec_holds` in
+  `BinarySearch/TotalProof.lean`). This build keeps nothing in registers
+  across the loop: it spills its state to two shadow-stack frames in linear
+  memory, moves the stack pointer through `global.get` / `global.set`, and
+  calls `from_raw_parts` as a real function. The proof owns the frame cells
+  and the array cells separately, threads the stack-pointer global through a
+  ghost global map, and closes the loop with a well-founded measure on
+  `hi - lo` read back from memory each iteration. The same four corollaries
+  follow: `binarySearch_result_unique`, `binarySearch_never_traps`,
+  `terminates_hit` and `terminates_miss`.
+- **The two artifacts are observationally equivalent, symbolically**
+  (`SymbolicEquivalence.equivalent`): for every array in the heap region and
+  every target, byte-identical Rust at `opt-level = 0` and at `opt-level = 3`
+  reaches the same observable outcome. The theorem composes the two symbolic
+  proofs and runs neither binary, so it carries no `native_decide` axiom.
 - **The model and its correctness lemmas.** A reported hit is genuine
   (`searchResult_hit`), and the sentinel is returned only when the target really
   is absent (`searchResult_miss`, which is where sortedness is needed). This
@@ -151,17 +172,12 @@ Proved, `lake build --wfail` clean, no `sorry`:
 - **The total-WP rules the symbolic proof needs** for `i32.shr_u`, `i32.gt_u`
   and `i32.ge_u`, which the upstream total lifting library does not carry.
 
-Not yet done: the symbolic proof of the unoptimized artifact and the symbolic
-form of the equivalence statement. Both were parked on the same missing piece:
-the unoptimized build spills its loop state through `global.get` / `global.set`
-(the shadow stack), and the upstream total lifting library had no rules for
-those. Those rules landed upstream with the total-correctness milestone
-(2026-08-20), so both are now in progress. The concrete per-input results depend
-on `native_decide` and are quarantined in `Smoke.lean` / `Equivalence.lean`;
-`just axioms` prints exactly which theorems those are. Every universal
-statement, including the symbolic proof above, carries the standard axioms
-plus at most the one inherited upstream `bv_decide` axiom described under the
-trust base above.
+The concrete per-input results depend on `native_decide` and are quarantined
+in `Smoke.lean` / `Equivalence.lean`; `just axioms` prints exactly which
+theorems those are. Every universal statement, including both symbolic proofs
+and the symbolic equivalence, carries the standard axioms plus at most the
+four inherited upstream `bv_decide` axioms described under the trust base
+above.
 
 ## License
 
