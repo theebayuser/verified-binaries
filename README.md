@@ -11,8 +11,8 @@ against the [Talos](https://github.com/cajal-technologies/talos) small-step Wasm
 semantics and its Iris separation logic, consumed as an ordinary dependency at a
 pinned commit. No Talos source is vendored here.
 
-Status: work in progress. What is proved so far is listed under
-[Current state](#current-state); nothing below is claimed until it is in the
+Status: both claims below are proved. What is in the build is listed under
+[Current state](#current-state); nothing here is claimed until it is in the
 build.
 
 ## The claim being built
@@ -27,7 +27,8 @@ build.
    This one is done; see [Current state](#current-state).
 2. **Observational equivalence of the two artifacts.** The unoptimized and
    optimized builds agree on the observable outcome for every input meeting the
-   precondition.
+   precondition. This one is done as well, and so is the total correctness of
+   the unoptimized artifact it rests on; see [Current state](#current-state).
 
 The optimized build is the interesting one. `opt-level = 3` inlines the slice
 construction and the inner call, drops the shadow stack, keeps the loop state in
@@ -136,9 +137,9 @@ Proved, `lake build --wfail` clean, no `sorry`:
   interpret the returned value: a non-sentinel answer is an index holding the
   target with no sortedness assumption at all, and for sorted input the
   sentinel means the target is absent. The whole chain depends on Lean's
-  standard axioms plus one inherited upstream `bv_decide` axiom described
-  under the trust base above; `just axioms` shows it, and CI fails if anything
-  else appears.
+  standard axioms plus one of the four inherited upstream `bv_decide` axioms
+  described under the trust base above, `u32Byte_reassemble`; `just axioms`
+  shows it, and CI fails if anything else appears.
 - **Symbolic total correctness of the unoptimized artifact.** The same
   statement for the `opt-level = 0` export (`BinarySearchSpec` in
   `BinarySearch/Spec.lean`, proved by `binarySearchSpec_holds` in
