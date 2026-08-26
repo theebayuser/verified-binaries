@@ -48,6 +48,11 @@ are involved. -/
 theorem initial_mem_pages :
     ((«module».initialStore : Store Unit)).mem.pages = 17 := rfl
 
+/-- The module declares no extra memories, so the multi-memory resolver of
+the adequacy layer collapses to memory 0. -/
+theorem initial_extraMems :
+    ((«module».initialStore : Store Unit)).extraMems = [] := rfl
+
 /-! ## The ghost byte map for the array region
 
 `searchHeap ptr arr` owns exactly the bytes of the `arr.length` consecutive
@@ -58,7 +63,7 @@ u32 cells starting at `ptr`, with the little-endian bytes of each element.
 def heap32Aux (heap : WasmHeapMap (Option UInt8)) (base : UInt32) :
     List UInt32 → WasmHeapMap (Option UInt8)
   | [] => heap
-  | value :: values => heap32Aux (store32Heap heap base value) (base + 4) values
+  | value :: values => heap32Aux (store32Heap heap 0 base value) (base + 4) values
 
 /-- The ghost heap covering the array cells of the entry configuration. -/
 def searchHeap (ptr : UInt32) (arr : List UInt32) :
@@ -67,17 +72,19 @@ def searchHeap (ptr : UInt32) (arr : List UInt32) :
 
 theorem heap32Aux_agrees
     (heap : WasmHeapMap (Option UInt8)) (mem : Mem) (base : UInt32)
-    (values : List UInt32) (hagree : heapAgreesWithMem heap mem)
+    (values : List UInt32)
+    (hagree : heapAgreesWithMem heap
+      (fun id => if id = 0 then some mem else none))
     (hfit : base.toNat + 4 * values.length < UInt32.size) :
     heapAgreesWithMem (heap32Aux heap base values)
-      (writeWords mem base values) := by
+      (fun id => if id = 0 then some (writeWords mem base values) else none) := by
   induction values generalizing heap mem base with
   | nil => simpa [heap32Aux, writeWords]
   | cons value values ih =>
       simp only [heap32Aux, writeWords, List.length_cons] at *
       simp only [UInt32.size] at hfit
       apply ih
-      · apply store32_sound
+      · apply store32_sound0
         · exact UInt32.add_ofNat_toNat_noWrap base 1 (by decide) (by omega)
         · exact UInt32.add_ofNat_toNat_noWrap base 2 (by decide) (by omega)
         · exact UInt32.add_ofNat_toNat_noWrap base 3 (by decide) (by omega)
@@ -90,11 +97,13 @@ theorem heap32Aux_agrees
 
 theorem heap32Aux_inBounds
     (heap : WasmHeapMap (Option UInt8)) (mem : Mem) (base : UInt32)
-    (values : List UInt32) (hinBounds : heapAddressesInBounds heap mem)
+    (values : List UInt32)
+    (hinBounds : heapAddressesInBounds heap
+      (fun id => if id = 0 then some mem else none))
     (hfit : base.toNat + 4 * values.length < UInt32.size)
     (hmem : base.toNat + 4 * values.length ≤ mem.pages * 65536) :
     heapAddressesInBounds (heap32Aux heap base values)
-      (writeWords mem base values) := by
+      (fun id => if id = 0 then some (writeWords mem base values) else none) := by
   induction values generalizing heap mem base with
   | nil => simpa [heap32Aux, writeWords]
   | cons value values ih =>
@@ -103,12 +112,12 @@ theorem heap32Aux_inBounds
       have h4 : (base + 4 : UInt32).toNat = base.toNat + 4 :=
         UInt32.add_ofNat_toNat_noWrap base 4 (by decide) (by omega)
       apply ih
-      · apply store32_inBounds
+      · apply store32_inBounds0
         · exact UInt32.add_ofNat_toNat_noWrap base 1 (by decide) (by omega)
         · exact UInt32.add_ofNat_toNat_noWrap base 2 (by decide) (by omega)
         · exact UInt32.add_ofNat_toNat_noWrap base 3 (by decide) (by omega)
-        · exact hinBounds
         · omega
+        · exact hinBounds
       · rw [h4]
         simp only [UInt32.size]
         omega
@@ -119,13 +128,13 @@ set_option maxHeartbeats 2000000 in
 theorem heap32Aux_pointsTo [WasmHeapGS Unit]
     (heap : WasmHeapMap (Option UInt8)) (base : UInt32)
     (values : List UInt32)
-    (hdisjoint : ∀ address byte, get? heap address = some byte →
-      address.toNat < base.toNat)
+    (hdisjoint : ∀ (key : MemoryKey) byte, get? heap key = some byte →
+      key.addr.toNat < base.toNat)
     (hfit : base.toNat + 4 * values.length < UInt32.size) :
     ([∗map] address ↦ value ∈ heap32Aux heap base values,
       pointsTo (GF := WasmHeapGF Unit) (H := WasmHeapMap)
         address (DFrac.own 1) value) ⊢
-      arrayAt base values ∗
+      arrayAt 0 base values ∗
       ([∗map] address ↦ value ∈ heap,
         pointsTo (GF := WasmHeapGF Unit) (H := WasmHeapMap)
           address (DFrac.own 1) value) := by
@@ -153,38 +162,43 @@ theorem heap32Aux_pointsTo [WasmHeapGS Unit]
         apply UInt32.add_ofNat_toNat_noWrap base 3 (by decide)
         omega
       have hget (n : Nat) (_hlt : n < 4) :
-          get? heap (base + UInt32.ofNat n) = none := by
+          get? heap ⟨0, base + UInt32.ofNat n⟩ = none := by
         by_contra h
         obtain ⟨byte, hbyte⟩ := Option.ne_none_iff_exists.mp h
         have hlt := hdisjoint _ _ hbyte.symm
+        dsimp only at hlt
         rw [hn n (by omega)] at hlt
         omega
-      have hget0 : get? heap base = none := by
+      have hget0 : get? heap ⟨0, base⟩ = none := by
         simpa using hget 0 (by omega)
-      have hgetL1 : get? heap (base + 1) = none := by
+      have hgetL1 : get? heap ⟨0, base + 1⟩ = none := by
         simpa using hget 1 (by omega)
-      have hgetL2 : get? heap (base + 2) = none := by
+      have hgetL2 : get? heap ⟨0, base + 2⟩ = none := by
         simpa using hget 2 (by omega)
-      have hgetL3 : get? heap (base + 3) = none := by
+      have hgetL3 : get? heap ⟨0, base + 3⟩ = none := by
         simpa using hget 3 (by omega)
-      have hdisjoint' : ∀ address byte,
-          get? (store32Heap heap base value) address = some byte →
-          address.toNat < (base + 4).toNat := by
-        intro address byte haddress
-        change address.toNat < (base + UInt32.ofNat 4).toNat
+      have hdisjoint' : ∀ (key : MemoryKey) byte,
+          get? (store32Heap heap 0 base value) key = some byte →
+          key.addr.toNat < (base + 4).toNat := by
+        intro key byte hkey
+        change key.addr.toNat < (base + UInt32.ofNat 4).toNat
         rw [hn4]
-        by_cases h3 : address = base + 3
-        · subst address; rw [hl3]; omega
-        by_cases h2 : address = base + 2
-        · subst address; rw [hl2]; omega
-        by_cases h1 : address = base + 1
-        · subst address; rw [hl1]; omega
-        by_cases h0 : address = base
-        · subst address; omega
+        by_cases h3 : key = ⟨0, base + 3⟩
+        · subst key; show (base + 3 : UInt32).toNat < base.toNat + 4
+          rw [hl3]; omega
+        by_cases h2 : key = ⟨0, base + 2⟩
+        · subst key; show (base + 2 : UInt32).toNat < base.toNat + 4
+          rw [hl2]; omega
+        by_cases h1 : key = ⟨0, base + 1⟩
+        · subst key; show (base + 1 : UInt32).toNat < base.toNat + 4
+          rw [hl1]; omega
+        by_cases h0 : key = ⟨0, base⟩
+        · subst key; show (base : UInt32).toNat < base.toNat + 4
+          omega
         simp only [store32Heap, get?_insert_ne (Ne.symm h3),
           get?_insert_ne (Ne.symm h2), get?_insert_ne (Ne.symm h1),
-          get?_insert_ne (Ne.symm h0)] at haddress
-        have hlt := hdisjoint address byte haddress
+          get?_insert_ne (Ne.symm h0)] at hkey
+        have hlt := hdisjoint key byte hkey
         omega
       have hfit' : (base + 4).toNat + 4 * values.length < UInt32.size := by
         change (base + UInt32.ofNat 4).toNat + 4 * values.length < UInt32.size
@@ -192,10 +206,10 @@ theorem heap32Aux_pointsTo [WasmHeapGS Unit]
         simp only [UInt32.size]
         omega
       iintro Hheap
-      ihave Hsplit := ih (store32Heap heap base value) (base + 4)
+      ihave Hsplit := ih (store32Heap heap 0 base value) (base + 4)
         hdisjoint' hfit' $$ Hheap
       icases Hsplit with ⟨Hvalues, Hstored⟩
-      ihave Hword := store32Heap_pointsTo heap base value
+      ihave Hword := store32Heap_pointsTo heap 0 base value
         hget0 hgetL1 hgetL2 hgetL3 hl1 hl2 hl3 $$ Hstored
       icases Hword with ⟨Hword, Hheap⟩
       simp only [arrayAt]
@@ -209,21 +223,23 @@ theorem heap32Aux_pointsTo [WasmHeapGS Unit]
 
 theorem searchHeap_agrees (mem : Mem) (ptr : UInt32) (arr : List UInt32)
     (hfit : ptr.toNat + 4 * arr.length < UInt32.size) :
-    heapAgreesWithMem (searchHeap ptr arr) (writeWords mem ptr arr) :=
-  heap32Aux_agrees ∅ mem ptr arr (heapAgreesWithMem_empty mem) hfit
+    heapAgreesWithMem (searchHeap ptr arr)
+      (fun id => if id = 0 then some (writeWords mem ptr arr) else none) :=
+  heap32Aux_agrees ∅ mem ptr arr (heapAgreesWithMem_empty _) hfit
 
 theorem searchHeap_inBounds (mem : Mem) (ptr : UInt32) (arr : List UInt32)
     (hfit : ptr.toNat + 4 * arr.length < UInt32.size)
     (hmem : ptr.toNat + 4 * arr.length ≤ mem.pages * 65536) :
-    heapAddressesInBounds (searchHeap ptr arr) (writeWords mem ptr arr) :=
-  heap32Aux_inBounds ∅ mem ptr arr (heapAddressesInBounds_empty mem) hfit hmem
+    heapAddressesInBounds (searchHeap ptr arr)
+      (fun id => if id = 0 then some (writeWords mem ptr arr) else none) :=
+  heap32Aux_inBounds ∅ mem ptr arr (heapAddressesInBounds_empty _) hfit hmem
 
 theorem searchHeap_pointsTo [WasmHeapGS Unit]
     (ptr : UInt32) (arr : List UInt32)
     (hfit : ptr.toNat + 4 * arr.length < UInt32.size) :
     ([∗map] address ↦ value ∈ searchHeap ptr arr,
       pointsTo (GF := WasmHeapGF Unit) (H := WasmHeapMap)
-        address (DFrac.own 1) value) ⊢ arrayAt ptr arr := by
+        address (DFrac.own 1) value) ⊢ arrayAt 0 ptr arr := by
   unfold searchHeap
   iintro Hheap
   ihave Hsplit := heap32Aux_pointsTo ∅ ptr arr
@@ -423,8 +439,8 @@ theorem twp_load32_cell
     {controls : List ControlFrame} {calls : List CallFrame}
     (ptr : UInt32) (xs : List UInt32) (k : Nat) (hk : k < xs.length)
     (hfit : ptr.toNat + 4 * xs.length ≤ 17 * 65536) :
-    arrayAt ptr xs ∗
-      (arrayAt ptr xs -∗
+    arrayAt 0 ptr xs ∗
+      (arrayAt 0 ptr xs -∗
         WP (.running ⟨⟨params, localValues, .i32 xs[k] :: values⟩,
             code, arity, remainder, controls, calls⟩ : Expr Unit)
           @ s; E [{ Φ }]) ⊢
@@ -447,9 +463,9 @@ theorem twp_load32_cell
     apply UInt32.add_ofNat_toNat_noWrap _ 3 (by decide)
     omega
   iintro ⟨Harray, Htwp⟩
-  ihave Hcell := arrayAt_get ptr xs k hk $$ Harray
+  ihave Hcell := arrayAt_get 0 ptr xs k hk $$ Harray
   icases Hcell with ⟨Hword, Hrestore⟩
-  ihave Hword' : pointsTo_u32 (ptr + 4 * UInt32.ofNat k + 0) xs[k] $$ [Hword]
+  ihave Hword' : pointsTo_u32 0 (ptr + 4 * UInt32.ofNat k + 0) xs[k] $$ [Hword]
   · rw [UInt32.add_zero]
     iexact Hword
   iapply Wasm.SmallStep.twp_load32
@@ -474,7 +490,8 @@ theorem twp_searchCall
     (([∗map] address ↦ value ∈ searchHeap ptr arr,
         pointsTo (GF := WasmHeapGF Unit) (H := WasmHeapMap)
           address (DFrac.own 1) value) ∗
-      runtimeModuleOwn (symbolicConfig ptr arr target).store.runtime.module) ⊢
+      runtimeModuleOwn (symbolicConfig ptr arr target).store.runtime.entry
+        (symbolicConfig ptr arr target).store.runtime.currentModule) ⊢
       WP (symbolicConfig ptr arr target).expr @ Stuckness.NotStuck; ⊤
         [{ values,
           ∀ (store : MachineStore Unit) (_observations : List StepKind),
@@ -525,7 +542,7 @@ theorem twp_searchCall
       ⌜st.lo < st.hi ∧ st.hi ≤ arr.length ∧
         searchAux arr target st.lo st.hi
           = searchAux arr target 0 arr.length⌝ ∗
-      arrayAt ptr arr
+      arrayAt 0 ptr arr
     iapply Wasm.SmallStep.twp_loop_wf_family
       (measure := fun st : SearchState => st.hi - st.lo)
       (locals := fun st => searchLocals ptr (UInt32.ofNat arr.length) target
@@ -730,14 +747,25 @@ the pure model's answer. This discharges `BinarySearchOpt3Spec` verbatim. -/
 @[proves BinarySearchOpt3Spec]
 theorem binarySearchOpt3Spec_holds : BinarySearchOpt3Spec := by
   intro ptr arr target _hbase hfit
-  exact wasm_smallStep_heap_store_terminates.{0}
+  have hres : storeResolve (symbolicConfig ptr arr target).store =
+      (fun id => if id = 0 then
+        some (writeWords ((«module».initialStore : Store Unit)).mem ptr arr)
+      else none) := by
+    funext i
+    by_cases h : i = 0
+    · simp [storeResolve, symbolicConfig, h]
+    · simp [storeResolve, symbolicConfig, h, initial_extraMems]
+  exact wasm_smallStep_heap_store_terminates
     (symbolicConfig ptr arr target) (searchHeap ptr arr)
     (fun values _ => values = [.i32 (searchResult arr target)])
-    (searchHeap_agrees («module».initialStore : Store Unit).mem ptr arr
-      (by rw [usize_eq]; omega))
-    (searchHeap_inBounds («module».initialStore : Store Unit).mem ptr arr
-      (by rw [usize_eq]; omega)
-      (by rw [initial_mem_pages]; exact hfit))
+    (by rw [hres]
+        exact searchHeap_agrees («module».initialStore : Store Unit).mem ptr arr
+          (by rw [usize_eq]; omega))
+    (by rw [hres]
+        exact searchHeap_inBounds («module».initialStore : Store Unit).mem ptr arr
+          (by rw [usize_eq]; omega)
+          (by rw [initial_mem_pages]; exact hfit))
+    Nat.zero_lt_one
     (fun hlc gs => twp_searchCall ptr arr target hfit)
 
 /-- Postcondition weakening for the corollaries: `TerminatesWith` is an

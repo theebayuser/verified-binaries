@@ -64,34 +64,36 @@ normalization), `global.get`/`global.set`, and a second `call` +
 
 ## Rule coverage needed
 
-Available in talos main `5ea231c`
-(`codelib/CodeLib/SepLogic/SmallStepTotalLifting.lean`): `twp_pureStep`,
+Available in talos main `3d742fb` (the pin as of 2026-08-25;
+`codelib/CodeLib/SepLogic/SmallStepTotalLifting.lean`): `twp_pureStep`,
 `twp_finish`, `twp_returnFromFunction`, `twp_const`, `twp_add`, `twp_sub`,
 `twp_mul`, `twp_shl`, `twp_remU`, `twp_eqz`, `twp_ltU`, `twp_iff`,
 `twp_block`, `twp_loop`, `twp_exitControl`, `twp_br`, `twp_brIf`,
-`twp_brIfZero`, `twp_localGet`, `twp_localSet`, `twp_call`,
-`twp_returnFromCallExplicit`, `twp_load32`, `twp_store32`; plus
-`twp_loop_wf_family` in `SmallStepTotalLoop.lean`.
+`twp_brIfZero`, `twp_localGet`, `twp_localSet`, `twp_localTee`, `twp_call`,
+`twp_returnFromCallExplicit`, `twp_load32`, `twp_store32`, `twp_and`,
+`twp_globalGet`, `twp_globalSet` (both stated for global index 0, which is
+this module's `$__stack_pointer`); plus `twp_loop_wf_family` in
+`SmallStepTotalLoop.lean`.
 
-To write locally (all `twp_pureStep` one-liners; the `Step` constructors
-already exist in `interpreter/Interpreter/Wasm/SmallStep.lean`):
+Still local to this repo (`Project/BinarySearch/Rules.lean`; all
+`twp_pureStep` one-liners over existing `Step` constructors):
 
-| rule | needed by | `Step` constructor |
-|---|---|---|
-| `twp_shrU` | both | `Step.shrU` (SmallStep.lean:4527) |
-| `twp_geU` | opt3 bounds check | `Step.geU` (:4815) |
-| `twp_gtU` | both | `Step.gtU` (:4801) |
-| `twp_and` | opt0 only | in-flight upstream |
+| rule | needed by |
+|---|---|
+| `twp_shrU` | both |
+| `twp_geU` | opt3 bounds check |
+| `twp_gtU` | both |
 
 `local.tee` needs no rule: the WAT decoder desugars it to `local.set` +
 `local.get`.
 
 ## Consequence for proof order
 
-opt3 is proved first. It needs only rules we can write ourselves, has no
-shadow stack, and is a single self-contained function. opt0 additionally needs
-total rules for `global.get`/`global.set`, which do not exist in talos main
-today, so it is sequenced second.
+opt3 was proved first: it needs only rules we can write ourselves, has no
+shadow stack, and is a single self-contained function. opt0 additionally
+needs total rules for `global.get`/`global.set`, which landed in talos main
+with the M8 total-correctness merge (2026-08-20), so nothing blocks it at the
+rule level any more.
 
 This also states the result more strongly: the artifact that would actually
 ship is the optimized one, and it is the one whose correspondence to the

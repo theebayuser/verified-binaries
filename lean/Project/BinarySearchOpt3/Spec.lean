@@ -55,7 +55,7 @@ def symbolicConfig (ptr : UInt32) (arr : List UInt32) (target : UInt32) :
           [.i32 0, .i32 0, .i32 0, .i32 0], []⟩,
         func0, 1, [], [], []⟩
     store :=
-      { runtime := { module := «module», host := {} }
+      { runtime := { instances := #[{ module := «module», host := {} }], entry := ⟨0⟩ }
         wasm := { initial with mem := writeWords initial.mem ptr arr } } }
 
 /-- Total functional correctness of the compiled artifact: the export

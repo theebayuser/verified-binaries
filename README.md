@@ -104,6 +104,13 @@ Not proved, and deliberately part of the trust base:
   the compiled evaluator rather than the kernel alone. They are quarantined in
   `Smoke.lean` / `Equivalence.lean`, and no universal statement depends on
   them; `just axioms` and CI both enforce that boundary.
+- **One `bv_decide` axiom inherited from upstream.** At the current pin, Talos
+  proves its byte-reassembly lemma (`Wasm.SepLogic.u32Byte_reassemble`) with
+  `bv_decide`, whose LRAT certificate check runs through compiled code, so it
+  carries the same compiler trust as `native_decide`. Every upstream heap rule
+  depends on that lemma, so every symbolic memory proof here inherits exactly
+  that one axiom. `just axioms` names it, and CI fails on any other
+  non-standard axiom in a universal statement.
 
 ## Current state
 
@@ -125,7 +132,9 @@ Proved, `lake build --wfail` clean, no `sorry`:
   interpret the returned value: a non-sentinel answer is an index holding the
   target with no sortedness assumption at all, and for sorted input the
   sentinel means the target is absent. The whole chain depends on Lean's
-  standard axioms only; `just axioms` shows it, and CI fails if that changes.
+  standard axioms plus the one inherited upstream `bv_decide` axiom described
+  under the trust base above; `just axioms` shows it, and CI fails if anything
+  else appears.
 - **The model and its correctness lemmas.** A reported hit is genuine
   (`searchResult_hit`), and the sentinel is returned only when the target really
   is absent (`searchResult_miss`, which is where sortedness is needed). This
@@ -143,14 +152,16 @@ Proved, `lake build --wfail` clean, no `sorry`:
   and `i32.ge_u`, which the upstream total lifting library does not carry.
 
 Not yet done: the symbolic proof of the unoptimized artifact and the symbolic
-form of the equivalence statement. Both are parked on the same missing piece:
+form of the equivalence statement. Both were parked on the same missing piece:
 the unoptimized build spills its loop state through `global.get` / `global.set`
-(the shadow stack), and the upstream total lifting library has no rules for
-those yet. The concrete per-input results depend
+(the shadow stack), and the upstream total lifting library had no rules for
+those. Those rules landed upstream with the total-correctness milestone
+(2026-08-20), so both are now in progress. The concrete per-input results depend
 on `native_decide` and are quarantined in `Smoke.lean` / `Equivalence.lean`;
 `just axioms` prints exactly which theorems those are. Every universal
 statement, including the symbolic proof above, carries the standard axioms
-only.
+plus at most the one inherited upstream `bv_decide` axiom described under the
+trust base above.
 
 ## License
 

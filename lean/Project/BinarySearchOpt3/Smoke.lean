@@ -36,7 +36,7 @@ def config (arr : List UInt32) (target : UInt32) : Wasm.SmallStep.Config Unit :=
           [.i32 0, .i32 0, .i32 0, .i32 0], []⟩,
         func0, 1, [], [], []⟩
     store :=
-      { runtime := { module := «module», host := {} }
+      { runtime := { instances := #[{ module := «module», host := {} }], entry := ⟨0⟩ }
         wasm := { initial with mem := writeWords initial.mem heapBase arr } } }
 
 /-- The binary returns exactly what the model predicts, on this input. -/

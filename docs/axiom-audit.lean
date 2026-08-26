@@ -3,19 +3,27 @@ import Project
 /-!
 Axiom audit. Run with `just axioms`.
 
-Expected, and the point of separating the two groups:
+Expected, and the point of separating the three groups:
 
 * the model lemmas and the WP rules depend only on Lean's standard axioms
   (`propext`, `Quot.sound`, and `Classical.choice` where classical reasoning
   is used);
+* the symbolic memory proofs additionally carry exactly one inherited axiom,
+  `Wasm.SepLogic.u32Byte_reassemble._native.bv_decide.ax_*`. The pinned
+  upstream CodeLib proves its byte-reassembly lemma with `bv_decide`, whose
+  LRAT certificate check runs through compiled code, so its trust base is the
+  Lean compiler. Every upstream heap rule depends on that lemma, so every
+  proof here that touches linear memory inherits the axiom; nothing local can
+  remove it. `docs/check-axioms.py` accepts that one axiom by exact name and
+  no other;
 * the concrete regressions, and anything built from them, additionally carry a
   `native_decide` axiom. That is why they are kept in `Smoke.lean` and why no
   universal claim is allowed to depend on them.
 
 `docs/check-axioms.py` parses this output and fails if a theorem outside
-`Smoke` / `Equivalence` carries anything beyond the standard axioms, or if the
-audit produced fewer records than there are `#print axioms` lines here. CI runs
-both.
+`Smoke` / `Equivalence` carries anything beyond the standard axioms and the
+named inherited axiom, or if the audit produced fewer records than there are
+`#print axioms` lines here. CI runs both.
 -/
 
 open Project.BinarySearch.Pure
@@ -31,9 +39,10 @@ open Project.BinarySearch.Pure
 #print axioms Wasm.SmallStep.twp_gtU
 #print axioms Wasm.SmallStep.twp_geU
 
--- The symbolic opt3 proof: standard axioms only. These are the audit lines
--- that matter most: a universal statement must never pick up a
--- `native_decide` axiom.
+-- The symbolic opt3 proof: standard axioms plus the inherited upstream
+-- `bv_decide` axiom described above. These are the audit lines that matter
+-- most: a universal statement must never pick up a `native_decide` axiom or
+-- any other unexplained one.
 #print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3Spec_holds
 #print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3_result_unique
 #print axioms Project.BinarySearchOpt3.TotalProof.binarySearchOpt3_never_traps
