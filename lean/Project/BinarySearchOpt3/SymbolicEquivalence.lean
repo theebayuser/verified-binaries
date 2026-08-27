@@ -26,7 +26,10 @@ memory would make the statement false rather than stronger.
 
 Unlike the concrete instances, this theorem carries no `native_decide` axiom.
 `docs/check-axioms.py` holds it to the symbolic standard: Lean's standard
-axioms plus the one inherited upstream `bv_decide` axiom.
+axioms plus the four inherited upstream `bv_decide` axioms. It carries all
+four rather than only `u32Byte_reassemble`, because it composes the
+unoptimized proof, which brings in the three `Mem.read32_byte` axioms that
+its heap-agreement lemma uses.
 -/
 
 namespace Project.BinarySearchOpt3.SymbolicEquivalence
